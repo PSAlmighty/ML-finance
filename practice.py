@@ -4,11 +4,14 @@ import pandas as pd
 import numpy as np
 
 symbol_file_name = "nasdaq_retail.csv"
-symbol = 'AAPL'
+symbol = 'BBY'
 share = Share(symbol)
 
 print share.get_change()
 print share.get_dividend_pay_date()
-
-print type(share.get_historical('2016-12-01','2016-12-12'))
+historical_prices = share.get_historical('2016-12-08', '2016-12-12')
+print type(historical_prices)
+print type (historical_prices[0])
+pprint(historical_prices)
+pprint(historical_prices[0])
 
