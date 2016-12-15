@@ -48,7 +48,9 @@ def get_daily_returns (data):
 
 def run():
     # Run function which is called from main.
-    print symbol_to_path('GOOG')
+    print symbol_to_path('AMZN')
+    df = get_data(["AMZN"], pd.date_range('2009-1-1','2009-3-1'))
+    print df
 
 
 if __name__ == '__main__':
