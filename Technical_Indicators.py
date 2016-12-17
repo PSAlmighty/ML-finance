@@ -1,3 +1,5 @@
+__author__ = "Hitesh Gulati"
+
 import pandas as pd
 import numpy as np
 import math
@@ -15,7 +17,7 @@ Close = "Close"
 Open = "Open"
 Volume = "Volume"
 Date = "Date"
-Money_Flow_Volume = "Money Flow Volume"
+
 
 def symbol_to_path (symbol, data_dir = 'data'):
     return  os.path.join ( data_dir, '{}.csv'.format(symbol))
@@ -45,8 +47,6 @@ def plot_data(data, title = 'Stock Prices', measure = None):
     ax.set_xlabel("Date")
     ax.set_ylabel("Prices")
     plt.show()
-
-
 # Get list of measures to be used as per given standards
 def get_measures (data, measures):
     if measures is "All":
@@ -86,11 +86,11 @@ def MA (data, window =14, measures = None, add_to_data = False ):
 # Get Chaikin Money Flow
 def CMF (data, window=14, measures = None, add_to_data = False):
     label = "CMF" + str (window)
-    money_flow_multiplier = ((data[Close]-data[Low])-(data[High]))/(data[High]-data[Low])
+    money_flow_multiplier = ((data[Close]-data[Low])-(data[High]-data[Close]))/(data[High]-data[Low])
     money_flow_volume = money_flow_multiplier * data[Volume]
     new_data = data.copy()
-    new_data[Money_Flow_Volume] = money_flow_volume
-    Chaikin_Money_Flow = (new_data[Money_Flow_Volume].rolling(window).sum())/(new_data[Volume].rolling(window).sum())
+    new_data["Money Flow Volume"] = money_flow_volume
+    Chaikin_Money_Flow = (new_data["Money Flow Volume"].rolling(window).sum())/(new_data[Volume].rolling(window).sum())
     return add_or_not(data,Chaikin_Money_Flow,add_to_data,label=label)
 
 # Money Flow Index
@@ -121,20 +121,55 @@ def MFI(data, window=14, measures = None, add_to_data = False):
     money_flow_index = 100 - (100/(1+money_flow_ratio))
     new_data["Money Flow Index"]= money_flow_index
     return add_or_not(data,money_flow_index,add_to_data,label= label)
+# Accumulaion/Distribution Line
+def ADL (data, window=1, measures = None, add_to_data = False):
+    label = "ADL" + str(window)
+    money_flow_multiplier = ((data[Close] - data[Low]) - (data[High] - data[Close])) / (data[High] - data[Low])
+    money_flow_volume = money_flow_multiplier * data[Volume]
+    adl = money_flow_volume.copy()
+    i = window
+    while i < len(adl):
+        adl [i] = money_flow_volume[i] + adl[i-window]
+        i += 1
+    #print adl
+    return add_or_not(data,adl,add_to_data,label = label)
+
+#Average True Range
+def ATR (data, window=14, measures = None, add_to_data = False):
+    label = "ATR" + str(window)
+    HminusL = data[High] - data [Low]
+    HminusCp = abs(data[High] - data[Close].shift(1))
+    LminusCp = abs(data[Low]-data[Close].shift(1))
+    true_range = HminusL
+    i = 1
+    while i < len(true_range):
+        true_range[i] = max (HminusL[i],HminusCp[i],LminusCp[i])
+        i += 1
+    i = window
+    adr = true_range.rolling(window).mean()
+    while i< len(adr):
+        adr[i] = (adr[i-1]*(window-1) + true_range[i])/window
+        i += 1
+    return add_or_not(data,adr,add_to_data,label = label)
+
 
 def run():
     # Run function which is called from main.
     print symbol_to_path('AMZN')
-    df = get_data("AMZN", pd.date_range('2009-1-1','2014-1-1'))
+    df = get_data("AMZN", pd.date_range('2009-1-1','2009-3-1'))
     print "Data Read"
     #print df
     #df =  MA(df, window =14, add_to_data=True)
     #plot_data(df, measure=[Adj_Close,'MA14_Adj Close'])
-    # CMF(df,add_to_data=True)
-    # print df
+    #CMF(df,add_to_data=True,window=20)
+    #print df
     # plot_data(df, measure="CMF14")
-    MFI (df, add_to_data= True)
-    plot_data(df, measure= ["Adj Close","MFI14"])
+    #MFI (df, add_to_data= True)
+    #plot_data(df, measure= ["Adj Close","MFI14"])
+    #ADL(df,add_to_data=True)
+    #print df
+    # ATR(df,add_to_data=True)
+    # plot_data(df,measure="ATR14")
 
 
 
