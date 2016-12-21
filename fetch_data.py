@@ -11,7 +11,7 @@ summary_file_name = "data/summary_file.csv"
 ticker_file = pd.read_csv(ticker_file_name)
 ticker_summary_list = []
 
-start = datetime(2009,1,1)
+start = datetime(2006,1,1)
 end = datetime(2014,1,1)
 print ticker_file['Company Name'][0]
 for i in range(0,len(ticker_file)):

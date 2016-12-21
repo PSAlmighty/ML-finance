@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from pprint import pprint
 from datetime import datetime
 from datetime import timedelta
+import statsmodels.api as sm
 
 Adj_Close = "Adj Close"
 High = "High"
@@ -17,7 +18,9 @@ Close = "Close"
 Open = "Open"
 Volume = "Volume"
 Date = "Date"
-
+Uptrend = "Uptrend"
+Downtrend = "Downtrend"
+Notrend = "Notrend"
 
 def symbol_to_path (symbol, data_dir = 'data'):
     return  os.path.join ( data_dir, '{}.csv'.format(symbol))
@@ -152,12 +155,41 @@ def ATR (data, window=14, measures = None, add_to_data = False):
         i += 1
     return add_or_not(data,adr,add_to_data,label = label)
 
+def absolute_sum (data):
+    absolute_data = np.absolute(data)
+    return absolute_data.sum()
+
+
+def trend_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+    label = "trend" + str(window)
+    lamb = 5000
+    cycle_value, trend_value = sm.tsa.filters.hpfilter(data[Adj_Close],lamb)
+    trend_string = [Notrend for x in range(len(trend_value))]
+    trend = np.array(trend_string)
+    i = window
+    ax = trend_value.plot(title="Plot", fontsize=12)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Trend")
+    plt.show()
+    trend_variation = trend_value.rolling(window).std() / trend_value.rolling(window).mean()
+    trend_sum = trend_value.rolling(window).sum()
+    trend_abs_sum = trend_value.rolling(window).apply(absolute_sum)
+    while i < len (trend):
+        if trend_variation[i] <= .05:
+            if  trend_sum[i] == trend_abs_sum[i]:
+                trend[i]= Uptrend
+            elif trend_sum[i] == -trend_abs_sum[i]:
+                trend[i]= Downtrend
+                print "Downtrend Found...................................................."
+        i += 1
+    return add_or_not(data,trend,add_to_data=add_to_data, label =label)
 
 def run():
     # Run function which is called from main.
-    print symbol_to_path('AMZN')
-    df = get_data("AMZN", pd.date_range('2009-1-1','2009-3-1'))
-    print "Data Read"
+    # symbol = 'BBW'
+    # print symbol_to_path(symbol)
+    # df = get_data(symbol, pd.date_range('2009-1-1','2009-3-1'))
+    # print "Data Read"
     #print df
     #df =  MA(df, window =14, add_to_data=True)
     #plot_data(df, measure=[Adj_Close,'MA14_Adj Close'])
@@ -170,6 +202,17 @@ def run():
     #print df
     # ATR(df,add_to_data=True)
     # plot_data(df,measure="ATR14")
+    summary_file_name = "data/summary_file.csv"
+    ticker_file = pd.read_csv(summary_file_name)
+    for i in range(0,len(ticker_file)):
+        company_name = ticker_file['Company_Name'][i]
+        company_ticker = ticker_file['Ticker'][i]
+        symbol = company_ticker
+        df = get_data(symbol, pd.date_range('2006-1-1', '2012-11-1'))
+        print "Data Read for: ", company_name , " - ", company_ticker
+        trend = trend_agent(df)
+    print "Done!"
+
 
 
 
