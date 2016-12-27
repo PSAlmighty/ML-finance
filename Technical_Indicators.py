@@ -10,6 +10,7 @@ from pprint import pprint
 from datetime import datetime
 from datetime import timedelta
 import statsmodels.api as sm
+import talib
 
 Adj_Close = "Adj Close"
 High = "High"
@@ -21,6 +22,9 @@ Date = "Date"
 Uptrend = "Uptrend"
 Downtrend = "Downtrend"
 Notrend = "Notrend"
+Buy = "Buy"
+Sell = "Sell"
+Hold = "Hold"
 
 def symbol_to_path (symbol, data_dir = 'data'):
     return  os.path.join ( data_dir, '{}.csv'.format(symbol))
@@ -159,37 +163,68 @@ def absolute_sum (data):
     absolute_data = np.absolute(data)
     return absolute_data.sum()
 
-
-def trend_agent (data, window =14, measures = Adj_Close, add_to_data = False):
-    label = "trend" + str(window)
+#Hodrick-Prescott Filter. Returns the trend Uptrend, Downtrend or Notrend
+def HP_trend_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+    label = "HPtrend_agent" + str(window)
     lamb = 5000
     cycle_value, trend_value = sm.tsa.filters.hpfilter(data[Adj_Close],lamb)
+    trend_value_firstdiff = trend_value - trend_value.shift(1)
     trend_string = [Notrend for x in range(len(trend_value))]
     trend = np.array(trend_string)
     i = window
-    ax = trend_value.plot(title="Plot", fontsize=12)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Trend")
-    plt.show()
-    trend_variation = trend_value.rolling(window).std() / trend_value.rolling(window).mean()
-    trend_sum = trend_value.rolling(window).sum()
-    trend_abs_sum = trend_value.rolling(window).apply(absolute_sum)
+    trend_variation = trend_value_firstdiff.rolling(window).std() / trend_value_firstdiff.rolling(window).mean()
+    trend_sum = trend_value_firstdiff.rolling(window).sum()
+    trend_abs_sum = trend_value_firstdiff.rolling(window).apply(absolute_sum)
     while i < len (trend):
         if trend_variation[i] <= .05:
             if  trend_sum[i] == trend_abs_sum[i]:
                 trend[i]= Uptrend
             elif trend_sum[i] == -trend_abs_sum[i]:
                 trend[i]= Downtrend
-                print "Downtrend Found...................................................."
         i += 1
     return add_or_not(data,trend,add_to_data=add_to_data, label =label)
 
+#Stochastic Agent. Returns Buy, Sell or Hold.
+def stochastic_agent (data, window =5, measures = Adj_Close, add_to_data = False):
+    label = "stochastic_agent" + str(window)
+    slowk, slowd = talib.STOCH (data[High].values, data[Low].values, data[Close].values,fastk_period=window)
+    stochastic_string = [Hold for x in range(len(data))]
+    stochastic_signal = np.array(stochastic_string)
+    i = window
+    while i < len(stochastic_signal):
+        pass
+    print "Complete"
+
+    # return add_or_not(data,stochastic_agent,add_to_data=add_to_data, label =label)
+
+
+
+#Moving Average Crossover Agent. Returns Buy, Sell or Hold.
+def MAC_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+    label = "MAC_agent" + str(window)
+    short_window = window
+    long_window = ((window/7)/2)*35
+    short_moving_average = data[measures].rolling(short_window).mean()
+    long_moving_average = data[measures].rolling(long_window).mean()
+    MAC_string = [Hold for x in range(len(data))]
+    MAC_signal = np.array(MAC_string)
+    i = long_window
+    while i < len(MAC_signal):
+        if short_moving_average[i-1] < long_moving_average[i-1]:
+            if short_moving_average[i] > long_moving_average[i]:
+                MAC_signal[i] = Buy
+        elif short_moving_average[i-1] > long_moving_average[i-1]:
+            if short_moving_average[i] < long_moving_average [i]:
+                MAC_signal[i] = Sell
+        i += 1
+    return add_or_not(data,MAC_signal,add_to_data=add_to_data, label = label)
+
 def run():
     # Run function which is called from main.
-    # symbol = 'BBW'
-    # print symbol_to_path(symbol)
-    # df = get_data(symbol, pd.date_range('2009-1-1','2009-3-1'))
-    # print "Data Read"
+    symbol = 'BBW'
+    print symbol_to_path(symbol)
+    df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
+    print "Data Read"
     #print df
     #df =  MA(df, window =14, add_to_data=True)
     #plot_data(df, measure=[Adj_Close,'MA14_Adj Close'])
@@ -202,17 +237,20 @@ def run():
     #print df
     # ATR(df,add_to_data=True)
     # plot_data(df,measure="ATR14")
-    summary_file_name = "data/summary_file.csv"
-    ticker_file = pd.read_csv(summary_file_name)
-    for i in range(0,len(ticker_file)):
-        company_name = ticker_file['Company_Name'][i]
-        company_ticker = ticker_file['Ticker'][i]
-        symbol = company_ticker
-        df = get_data(symbol, pd.date_range('2006-1-1', '2012-11-1'))
-        print "Data Read for: ", company_name , " - ", company_ticker
-        trend = trend_agent(df)
-    print "Done!"
-
+    # summary_file_name = "data/summary_file.csv"
+    # ticker_file = pd.read_csv(summary_file_name)
+    # for i in range(0,len(ticker_file)):
+    #     company_name = ticker_file['Company_Name'][i]
+    #     company_ticker = ticker_file['Ticker'][i]
+    #     symbol = company_ticker
+    #     df = get_data(symbol, pd.date_range('2006-1-1', '2012-11-1'))
+    #     print "Data Read for: ", company_name , " - ", company_ticker
+    #     trend = trend_agent(df)
+    # print "Done!"
+    # HP_trend_agent(df,add_to_data=True)
+    # print df.head()
+    # print df.tail()
+    stochastic_agent(df)
 
 
 
