@@ -25,6 +25,14 @@ Notrend = "Notrend"
 Buy = "Buy"
 Sell = "Sell"
 Hold = "Hold"
+Strong_Volume = "Strong Volume"
+Weak_Volume = "Weak Volume"
+Trend_Points1 = '1'
+Trend_Points2 = '2'
+Trend_Points3 = '3'
+Trend_Points4 = '4'
+Trend_Points5 = '5'
+list_of_stocks_filename = "summary_file.csv"
 
 def symbol_to_path (symbol, data_dir = 'data'):
     return  os.path.join ( data_dir, '{}.csv'.format(symbol))
@@ -83,7 +91,7 @@ def add_indicator (data, indicator, label = "New Value"):
         return data.join(indicator)
     else:
         data[label] = indicator
-# Get Moving Average o mentioned size default 14 and add to data if True
+# Get Moving Average of mentioned size default 14 and add to data if True
 def MA (data, window =14, measures = None, add_to_data = False ):
     measures = get_measures(data, measures)
     indicator = data[measures].rolling(window).mean()
@@ -169,7 +177,7 @@ def HP_trend_agent (data, window =14, measures = Adj_Close, add_to_data = False)
     lamb = 5000
     cycle_value, trend_value = sm.tsa.filters.hpfilter(data[Adj_Close],lamb)
     trend_value_firstdiff = trend_value - trend_value.shift(1)
-    trend_string = [Notrend for x in range(len(trend_value))]
+    trend_string = [Downtrend for x in range(len(trend_value))]
     trend = np.array(trend_string)
     i = window
     trend_variation = trend_value_firstdiff.rolling(window).std() / trend_value_firstdiff.rolling(window).mean()
@@ -181,6 +189,8 @@ def HP_trend_agent (data, window =14, measures = Adj_Close, add_to_data = False)
                 trend[i]= Uptrend
             elif trend_sum[i] == -trend_abs_sum[i]:
                 trend[i]= Downtrend
+        else:
+            trend[i] = Notrend
         i += 1
     return add_or_not(data,trend,add_to_data=add_to_data, label =label)
 
@@ -192,9 +202,14 @@ def stochastic_agent (data, window =5, measures = Adj_Close, add_to_data = False
     stochastic_signal = np.array(stochastic_string)
     i = window
     while i < len(stochastic_signal):
-        pass
-    print "Complete"
-
+        if slowk[i-1] < slowd[i-1] and slowd[i-1] < 20:
+            if slowd[i] < slowk[i] and slowk[i] < 20:
+                stochastic_signal[i] = Buy
+        elif slowk[i-1] > slowd[i-1] and slowd[i-1] > 80:
+            if slowd[i] > slowk[i] and slowk[i] > 80:
+                stochastic_signal[i]= Sell
+        i += 1
+    return add_or_not(data,stochastic_signal,add_to_data=add_to_data,label=label)
     # return add_or_not(data,stochastic_agent,add_to_data=add_to_data, label =label)
 
 
@@ -219,12 +234,97 @@ def MAC_agent (data, window =14, measures = Adj_Close, add_to_data = False):
         i += 1
     return add_or_not(data,MAC_signal,add_to_data=add_to_data, label = label)
 
+#Volume Agent. Returns Strong Volume or Weak Volume
+def volume_agent (data, window =14, measures = Volume, add_to_data = False):
+    label = "volume_agent" + str(window)
+    long_window = window
+    short_window = (long_window /7)+1
+    short_moving_average = data[measures].rolling(short_window).mean()
+    long_moving_average = data[measures].rolling(long_window).mean()
+    volume_string = [Strong_Volume for x in range(len(data))]
+    volume_signal = np.array(volume_string)
+    i = long_window
+    while i < len(volume_signal):
+        if long_moving_average[i] > short_moving_average[i]:
+            volume_signal[i] = Weak_Volume
+        i += 1
+    return add_or_not(data,volume_signal,add_to_data=add_to_data,label=label)
+
+def ADX_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+    label = "ADX_agent" + str(window)
+    ADX = talib.ADX(data[High].values,data[Low].values,data[Low].values,timeperiod=window)
+    trend_string = [Trend_Points1 for x in range(len(data))]
+    trend_signal = np.array(trend_string)
+    i = window
+    while i < len(trend_signal):
+        if ADX[i] < 20:
+            trend_signal[i] = Trend_Points1
+        elif ADX[i] <30:
+            trend_signal[i] = Trend_Points2
+        elif ADX[i] < 40:
+            trend_signal[i] = Trend_Points3
+        elif ADX[i] < 50:
+            trend_signal[i] = Trend_Points4
+        elif ADX[i] < 100:
+            trend_signal[i] = Trend_Points5
+        i += 1
+    return add_or_not(data,trend_signal,add_to_data=add_to_data,label=label)
+# Candlestick agent. Returns Buy, Sell or Hold.
+def Candlestick_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+    label = "Candlestick_agent"
+    indicators = {}
+    indicators['sum'] = 0
+    indicators['hammer']= talib.CDLHAMMER(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['engulfing'] = talib.CDLENGULFING(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['hangingman'] = talib.CDLHANGINGMAN(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['threewhitesoldiers'] = talib.CDL3WHITESOLDIERS(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['threeblackcrows'] = talib.CDL3BLACKCROWS(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['threeinside'] = talib.CDL3INSIDE(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['eveningstar'] = talib.CDLEVENINGSTAR(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['morningstar'] = talib.CDLMORNINGSTAR(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+    indicators['threeoutside'] = talib.CDL3OUTSIDE(data[Open].values,data[High].values,data[Low].values,data[Close].values)
+
+    for value in indicators:
+        indicators['sum'] += indicators[value]
+    CDL_string = [Hold for x in range(len(data))]
+    CDL_signal = np.array(CDL_string)
+    i =0
+    while i < len(CDL_signal):
+        if indicators['sum'][i] > 0:
+            CDL_signal[i] = Buy
+        elif indicators['sum'][i] < 0:
+            CDL_signal[i] = Sell
+        i += 1
+    return add_or_not(data,CDL_signal,add_to_data=add_to_data,label=label)
+
+def make_indicator_files ():
+    summary_file_name = "data/" + list_of_stocks_filename
+    ticker_file = pd.read_csv(summary_file_name)
+    for i in range(0,len(ticker_file)):
+        company_name = ticker_file['Company_Name'][i]
+        company_ticker = ticker_file['Ticker'][i]
+        symbol = company_ticker
+        df = get_data(symbol, pd.date_range('2006-1-1', '2014-1-1'))
+        print "Data Read for: ", company_name , " - ", company_ticker
+        HP_trend_agent(df, add_to_data=True)
+        MAC_agent(df, add_to_data=True)
+        stochastic_agent(df, add_to_data=True)
+        volume_agent(df, add_to_data=True)
+        ADX_agent(df, add_to_data=True)
+        Candlestick_agent(df, add_to_data=True)
+        print "Indicators made for: ", company_name, " - ", company_ticker
+        columns = df.columns.values.tolist()
+        # columns.insert(0, 'Date')
+        df.to_csv(symbol_to_path("i_"+symbol),index_label="Date")
+        print "File made: i_",symbol
+    print "Done!"
+
 def run():
     # Run function which is called from main.
-    symbol = 'BBW'
-    print symbol_to_path(symbol)
-    df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
-    print "Data Read"
+    # symbol = 'BBW'
+    # print symbol_to_path(symbol)
+    # df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
+    # print "Data Read"
     #print df
     #df =  MA(df, window =14, add_to_data=True)
     #plot_data(df, measure=[Adj_Close,'MA14_Adj Close'])
@@ -247,12 +347,21 @@ def run():
     #     print "Data Read for: ", company_name , " - ", company_ticker
     #     trend = trend_agent(df)
     # print "Done!"
-    # HP_trend_agent(df,add_to_data=True)
+    # print HP_trend_agent(df,add_to_data=True)
     # print df.head()
     # print df.tail()
-    stochastic_agent(df)
-
-
+    # volume_agent(df,14,add_to_data=True)
+    # print df
+    # HP_trend_agent(df,add_to_data=True)
+    # MAC_agent(df,add_to_data=True)
+    # stochastic_agent(df,add_to_data=True)
+    # volume_agent(df,add_to_data=True)
+    # ADX_agent(df,add_to_data=True)
+    # Candlestick_agent(df,add_to_data=True)
+    # columns = df.columns.values.tolist()
+    # columns.insert(0,'Date')
+    # print columns
+    make_indicator_files()
 
 if __name__ == '__main__':
     run()
