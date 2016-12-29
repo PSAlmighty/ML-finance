@@ -33,6 +33,14 @@ Trend_Points3 = '3'
 Trend_Points4 = '4'
 Trend_Points5 = '5'
 list_of_stocks_filename = "summary_file.csv"
+Poor = "Poor"
+Bad ="Bad"
+Ok = "Ok"
+Good = "Good"
+Excellent = "Excellent"
+prediction_days = 7
+transaction_cost = 0
+risk_appetite = .5
 
 def symbol_to_path (symbol, data_dir = 'data'):
     return  os.path.join ( data_dir, '{}.csv'.format(symbol))
@@ -212,8 +220,6 @@ def stochastic_agent (data, window =5, measures = Adj_Close, add_to_data = False
     return add_or_not(data,stochastic_signal,add_to_data=add_to_data,label=label)
     # return add_or_not(data,stochastic_agent,add_to_data=add_to_data, label =label)
 
-
-
 #Moving Average Crossover Agent. Returns Buy, Sell or Hold.
 def MAC_agent (data, window =14, measures = Adj_Close, add_to_data = False):
     label = "MAC_agent" + str(window)
@@ -297,6 +303,51 @@ def Candlestick_agent (data, window =14, measures = Adj_Close, add_to_data = Fal
         i += 1
     return add_or_not(data,CDL_signal,add_to_data=add_to_data,label=label)
 
+# Returntorisk agent. Return Bad, Ok, Good, Excellent, based on returntorisk ratio.
+def returntorisk_agent (data, window =7, measures = Adj_Close, add_to_data = False):
+    label = "returntorisk_agent" + str(window)
+    return_expost = (data[Adj_Close]-data[Adj_Close].shift(window))/data[Adj_Close].shift(window)
+    risk_expost = return_expost.rolling(window).std()
+    returntorisk_expost = return_expost/risk_expost
+    returntorisk_string = [Excellent for x in range(len(data))]
+    returntorisk_signal = np.array(returntorisk_string)
+    for i in range (window, len(returntorisk_signal)):
+        if abs(returntorisk_expost[i]) < risk_appetite:
+            returntorisk_signal[i] = Bad
+        elif abs(returntorisk_expost[i]) < risk_appetite*2:
+            returntorisk_signal[i] = Ok
+        elif abs(returntorisk_expost[i]) < risk_appetite*4:
+            returntorisk_signal[i] = Good
+        else:
+            returntorisk_signal[i] = Excellent
+    return add_or_not(data,returntorisk_signal,add_to_data=add_to_data,label=label)
+
+# The correct decision. Based on exAnte calculations of return and risk.
+def correct_decision (data, window =7, measures = Adj_Close, add_to_data = False):
+    window = prediction_days
+    label = "new_decision" + str(window)
+    return_exante = (data[Adj_Close] - data[Adj_Close].shift(window - 1)) / data[Adj_Close].shift(window - 1)
+    risk_exante = return_exante.rolling(window).std()
+    returntorisk_exante = return_exante / risk_exante
+    decision_string = [Hold for x in range(len(data))]
+    decision_signal = np.array(decision_string)
+    for i in range(window, len(decision_signal)-window):
+        if abs(returntorisk_exante[i]) >= risk_appetite:
+            if return_exante[i] < -transaction_cost :
+                decision_signal[i-window] = Sell
+            if return_exante[i] > transaction_cost:
+                decision_signal[i-window] = Buy
+        else:
+            decision_signal[i-window] = Hold
+    # new_data = pd.DataFrame(data[Adj_Close])
+    # new_data['return'] = return_exante
+    # new_data['risk'] = risk_exante
+    # new_data['sharpe'] = returntorisk_exante
+    # new_data[label] = decision_signal
+    # print new_data
+    return  add_or_not(data,decision_signal,add_to_data=add_to_data,label=label)
+
+
 def make_indicator_files ():
     summary_file_name = "data/" + list_of_stocks_filename
     ticker_file = pd.read_csv(summary_file_name)
@@ -312,6 +363,8 @@ def make_indicator_files ():
         volume_agent(df, add_to_data=True)
         ADX_agent(df, add_to_data=True)
         Candlestick_agent(df, add_to_data=True)
+        returntorisk_agent(df, add_to_data=True)
+        correct_decision(df, add_to_data=True)
         print "Indicators made for: ", company_name, " - ", company_ticker
         columns = df.columns.values.tolist()
         # columns.insert(0, 'Date')
@@ -319,12 +372,50 @@ def make_indicator_files ():
         print "File made: i_",symbol
     print "Done!"
 
+def generate_test_train ():
+    summary_file_name = "data/" + list_of_stocks_filename
+    ticker_file = pd.read_csv(summary_file_name)
+    company_name = ticker_file['Company_Name'][0]
+    company_ticker = "i_" + ticker_file['Ticker'][0]
+    symbol = company_ticker
+    df_training = get_data(symbol, pd.date_range('2006-3-1', '2012-3-1'))
+    df_testing = get_data(symbol, pd.date_range('2012-3-1', '2013-12-1'))
+    print "Data Read for: ", company_name , " - ", company_ticker
+    training_data = df_training.copy()
+    testing_data = df_testing.copy()
+    training_size = len(training_data)
+    testing_size = len(testing_data)
+    print "training and testing data made"
+    for i in range(1,len(ticker_file)):
+        company_name = ticker_file['Company_Name'][i]
+        company_ticker = "i_" + ticker_file['Ticker'][i]
+        symbol = company_ticker
+        df_training = get_data(symbol, pd.date_range('2006-3-1', '2012-3-1'))
+        df_testing = get_data(symbol, pd.date_range('2012-3-1', '2013-12-1'))
+        print "Data Read for: ", company_name , " - ", company_ticker, "Training size: ", len(df_training), "Testing size: ", len(df_testing)
+        training_data = training_data.append(df_training,ignore_index=True)
+        testing_data = testing_data.append(df_testing,ignore_index=True)
+        print "training and testing data made"
+        training_size += len(df_training)
+        testing_size += len(df_testing)
+    columns = training_data.columns.values.tolist()
+    columns = columns [-8:]
+    training_data.to_csv(symbol_to_path("training_data"),columns=columns)
+    testing_data.to_csv(symbol_to_path("testing_data"),columns=columns)
+    print "training size: ", training_size
+    print "testing_size: ", testing_size
+    print "training file size: ", len(training_data)
+    print "testing file size: ", len(testing_data)
+    print " Done!!!"
+
+    return None
+
 def run():
     # Run function which is called from main.
-    # symbol = 'BBW'
-    # print symbol_to_path(symbol)
-    # df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
-    # print "Data Read"
+    symbol = 'i_BBW'
+    print symbol_to_path(symbol)
+    df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
+    print "Data Read"
     #print df
     #df =  MA(df, window =14, add_to_data=True)
     #plot_data(df, measure=[Adj_Close,'MA14_Adj Close'])
@@ -347,21 +438,10 @@ def run():
     #     print "Data Read for: ", company_name , " - ", company_ticker
     #     trend = trend_agent(df)
     # print "Done!"
-    # print HP_trend_agent(df,add_to_data=True)
-    # print df.head()
-    # print df.tail()
-    # volume_agent(df,14,add_to_data=True)
+    # correct_decision(df, add_to_data=True)
     # print df
-    # HP_trend_agent(df,add_to_data=True)
-    # MAC_agent(df,add_to_data=True)
-    # stochastic_agent(df,add_to_data=True)
-    # volume_agent(df,add_to_data=True)
-    # ADX_agent(df,add_to_data=True)
-    # Candlestick_agent(df,add_to_data=True)
-    # columns = df.columns.values.tolist()
-    # columns.insert(0,'Date')
-    # print columns
-    make_indicator_files()
+    # make_indicator_files()
+    generate_test_train()
 
 if __name__ == '__main__':
     run()
