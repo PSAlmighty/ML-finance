@@ -40,10 +40,13 @@ def plot_data(data, title = 'Stock Prices', value = None):
 
 def run():
     # Run function which is called from main.
-    print symbol_to_path('AMZN')
-    df = get_data("AMZN", pd.date_range('2009-1-1','2009-3-1'))
+    # print symbol_to_path('AMZN')
+    # df = get_data("AMZN", pd.date_range('2009-1-1','2009-3-1'))
+    # print df
+    # plot_data(df, value='Volume')
+    df = pd.DataFrame(data=None,columns=['First','Second'])
+    df['0'] = [1,2]
     print df
-    plot_data(df, value='Volume')
 
 
 if __name__ == '__main__':

@@ -19,25 +19,21 @@ Close = "Close"
 Open = "Open"
 Volume = "Volume"
 Date = "Date"
-Uptrend = "Uptrend"
-Downtrend = "Downtrend"
-Notrend = "Notrend"
-Buy = "Buy"
-Sell = "Sell"
-Hold = "Hold"
+Uptrend = 1
+Downtrend = -1
+Notrend = 0
+Buy = 1
+Sell = -1
+Hold = 0
 Strong_Volume = "Strong Volume"
 Weak_Volume = "Weak Volume"
-Trend_Points1 = '1'
-Trend_Points2 = '2'
-Trend_Points3 = '3'
-Trend_Points4 = '4'
-Trend_Points5 = '5'
+Weak_Trend = "Weak Trend"
+Strong_Trend = "Strong Trend"
 list_of_stocks_filename = "summary_file.csv"
 Poor = "Poor"
 Bad ="Bad"
 Ok = "Ok"
 Good = "Good"
-Excellent = "Excellent"
 prediction_days = 7
 transaction_cost = 0
 risk_appetite = .5
@@ -95,7 +91,7 @@ def add_or_not (data, indicator, add_to_data, label="New Value"):
 
 # Join data set with indicator
 def add_indicator (data, indicator, label = "New Value"):
-    if indicator is pd.DataFrame:
+    if type(indicator) is pd.core.frame.DataFrame:
         return data.join(indicator)
     else:
         data[label] = indicator
@@ -180,18 +176,17 @@ def absolute_sum (data):
     return absolute_data.sum()
 
 #Hodrick-Prescott Filter. Returns the trend Uptrend, Downtrend or Notrend
-def HP_trend_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+def HP_trend_agent (data, window =14, measures = Adj_Close):
     label = "HPtrend_agent" + str(window)
     lamb = 5000
     cycle_value, trend_value = sm.tsa.filters.hpfilter(data[Adj_Close],lamb)
     trend_value_firstdiff = trend_value - trend_value.shift(1)
     trend_string = [Downtrend for x in range(len(trend_value))]
     trend = np.array(trend_string)
-    i = window
     trend_variation = trend_value_firstdiff.rolling(window).std() / trend_value_firstdiff.rolling(window).mean()
     trend_sum = trend_value_firstdiff.rolling(window).sum()
     trend_abs_sum = trend_value_firstdiff.rolling(window).apply(absolute_sum)
-    while i < len (trend):
+    for i in range(window,len(trend)):
         if trend_variation[i] <= .05:
             if  trend_sum[i] == trend_abs_sum[i]:
                 trend[i]= Uptrend
@@ -199,11 +194,32 @@ def HP_trend_agent (data, window =14, measures = Adj_Close, add_to_data = False)
                 trend[i]= Downtrend
         else:
             trend[i] = Notrend
-        i += 1
-    return add_or_not(data,trend,add_to_data=add_to_data, label =label)
+    # trend_uptrend = trend.copy()
+    # trend_downtrend = trend.copy()
+    # trend_notrend = trend.copy()
+    # for i in range (0,len(trend)):
+    #     if trend[i]== Uptrend:
+    #         trend_uptrend[i] = 1
+    #         trend_downtrend[i] = 0
+    #         trend_notrend[i] = 0
+    #     elif trend[i] == Downtrend:
+    #         trend_uptrend[i] = 0
+    #         trend_downtrend[i] = 1
+    #         trend_notrend[i] = 0
+    #     elif trend[i] == Notrend:
+    #         trend_uptrend[i] = 0
+    #         trend_downtrend[i] = 0
+    #         trend_notrend[i] = 1
+    #     else:
+    #         trend_uptrend[i] = 0
+    #         trend_downtrend[i] = 0
+    #         trend_notrend[i] = 0
+    Hp_signal = data.copy()
+    Hp_signal['HP_Trend'] = trend
+    return Hp_signal
 
 #Stochastic Agent. Returns Buy, Sell or Hold.
-def stochastic_agent (data, window =5, measures = Adj_Close, add_to_data = False):
+def stochastic_agent (data, window =5, measures = Adj_Close):
     label = "stochastic_agent" + str(window)
     slowk, slowd = talib.STOCH (data[High].values, data[Low].values, data[Close].values,fastk_period=window)
     stochastic_string = [Hold for x in range(len(data))]
@@ -217,11 +233,37 @@ def stochastic_agent (data, window =5, measures = Adj_Close, add_to_data = False
             if slowd[i] > slowk[i] and slowk[i] > 80:
                 stochastic_signal[i]= Sell
         i += 1
-    return add_or_not(data,stochastic_signal,add_to_data=add_to_data,label=label)
+    trend = stochastic_signal
+    # trend_Buy = trend.copy()
+    # trend_Sell = trend.copy()
+    # trend_Hold = trend.copy()
+    # for i in range(0, len(trend)):
+    #     if trend[i] == Buy:
+    #         trend_Buy[i] = 1
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 0
+    #     elif trend[i] == Sell:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 1
+    #         trend_Hold[i] = 0
+    #     elif trend[i] == Hold:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 1
+    #     else:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 0
+    Stochastic_signal = data.copy()
+    Stochastic_signal[label] = trend
+    # Stochastic_signal['Stochastic_Buy'] = trend_Buy
+    # Stochastic_signal['Stochastic_Sell'] = trend_Sell
+    # Stochastic_signal['Stochastic_Hold'] = trend_Hold
+    return Stochastic_signal
     # return add_or_not(data,stochastic_agent,add_to_data=add_to_data, label =label)
 
 #Moving Average Crossover Agent. Returns Buy, Sell or Hold.
-def MAC_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+def MAC_agent (data, window =14, measures = Adj_Close):
     label = "MAC_agent" + str(window)
     short_window = window
     long_window = ((window/7)/2)*35
@@ -229,19 +271,43 @@ def MAC_agent (data, window =14, measures = Adj_Close, add_to_data = False):
     long_moving_average = data[measures].rolling(long_window).mean()
     MAC_string = [Hold for x in range(len(data))]
     MAC_signal = np.array(MAC_string)
-    i = long_window
-    while i < len(MAC_signal):
+    for i in range(long_window,len(MAC_signal)):
         if short_moving_average[i-1] < long_moving_average[i-1]:
             if short_moving_average[i] > long_moving_average[i]:
                 MAC_signal[i] = Buy
         elif short_moving_average[i-1] > long_moving_average[i-1]:
             if short_moving_average[i] < long_moving_average [i]:
                 MAC_signal[i] = Sell
-        i += 1
-    return add_or_not(data,MAC_signal,add_to_data=add_to_data, label = label)
+    trend = MAC_signal
+    # trend_Buy = trend.copy()
+    # trend_Sell = trend.copy()
+    # trend_Hold = trend.copy()
+    # for i in range(0, len(trend)):
+    #     if trend[i] == Buy:
+    #         trend_Buy[i] = 1
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 0
+    #     elif trend[i] == Sell:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 1
+    #         trend_Hold[i] = 0
+    #     elif trend[i] == Hold:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 1
+    #     else:
+    #         trend_Buy[i] = 0
+    #         trend_Sell[i] = 0
+    #         trend_Hold[i] = 0
+    MAC_signal = data.copy()
+    MAC_signal['MAC']=trend
+    # MAC_signal['MAC_Buy'] = trend_Buy
+    # MAC_signal['MAC_Sell'] = trend_Sell
+    # MAC_signal['MAC_Hold'] = trend_Hold
+    return MAC_signal
 
 #Volume Agent. Returns Strong Volume or Weak Volume
-def volume_agent (data, window =14, measures = Volume, add_to_data = False):
+def volume_agent (data, window =14, measures = Volume):
     label = "volume_agent" + str(window)
     long_window = window
     short_window = (long_window /7)+1
@@ -254,29 +320,57 @@ def volume_agent (data, window =14, measures = Volume, add_to_data = False):
         if long_moving_average[i] > short_moving_average[i]:
             volume_signal[i] = Weak_Volume
         i += 1
-    return add_or_not(data,volume_signal,add_to_data=add_to_data,label=label)
+    trend = volume_signal
+    trend_weak = trend.copy()
+    trend_strong = trend.copy()
+    for i in range(0, len(trend)):
+        if trend[i] == Weak_Volume:
+            trend_weak[i] = 1
+            trend_strong[i] = 0
+        elif trend[i] == Strong_Volume:
+            trend_weak[i] = 0
+            trend_strong[i] = 1
+        else:
+            trend_weak[i] = 0
+            trend_strong[i] = 0
+    return_signal = data.copy()
+    return_signal['Volume_Weak'] = trend_weak
+    return_signal['Volume_Strong'] = trend_strong
+    return return_signal
 
-def ADX_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+
+# Average Directional Index Agent, Returns points depending on the strength of the trend. Higher strength higher points.
+def ADX_agent (data, window =14, measures = Adj_Close):
     label = "ADX_agent" + str(window)
     ADX = talib.ADX(data[High].values,data[Low].values,data[Low].values,timeperiod=window)
-    trend_string = [Trend_Points1 for x in range(len(data))]
+    trend_string = [Strong_Trend for x in range(len(data))]
     trend_signal = np.array(trend_string)
-    i = window
-    while i < len(trend_signal):
-        if ADX[i] < 20:
-            trend_signal[i] = Trend_Points1
-        elif ADX[i] <30:
-            trend_signal[i] = Trend_Points2
-        elif ADX[i] < 40:
-            trend_signal[i] = Trend_Points3
-        elif ADX[i] < 50:
-            trend_signal[i] = Trend_Points4
-        elif ADX[i] < 100:
-            trend_signal[i] = Trend_Points5
-        i += 1
-    return add_or_not(data,trend_signal,add_to_data=add_to_data,label=label)
+    for i in range(window, len(trend_signal)):
+        if ADX[i] <= 25:
+            trend_signal[i] = Weak_Trend
+        else:
+            trend_signal[i] = Strong_Trend
+    trend = trend_signal
+    trend_weak = trend.copy()
+    trend_strong = trend.copy()
+    for i in range(0, len(trend)):
+        if trend[i] == Weak_Trend:
+            trend_weak[i] = 1
+            trend_strong[i] = 0
+        elif trend[i] == Strong_Trend:
+            trend_weak[i] = 0
+            trend_strong[i] = 1
+        else:
+            trend_weak[i] = 0
+            trend_strong[i] = 0
+    return_signal = data.copy()
+    # return_signal[label] = ADX
+    return_signal['ADXTrend_Weak'] = trend_weak
+    return_signal['ADXTrend_Strong'] = trend_strong
+    return return_signal
+
 # Candlestick agent. Returns Buy, Sell or Hold.
-def Candlestick_agent (data, window =14, measures = Adj_Close, add_to_data = False):
+def Candlestick_agent (data, window =14, measures = Adj_Close):
     label = "Candlestick_agent"
     indicators = {}
     indicators['sum'] = 0
@@ -294,36 +388,89 @@ def Candlestick_agent (data, window =14, measures = Adj_Close, add_to_data = Fal
         indicators['sum'] += indicators[value]
     CDL_string = [Hold for x in range(len(data))]
     CDL_signal = np.array(CDL_string)
-    i =0
-    while i < len(CDL_signal):
+    for i in range(0,len(CDL_signal)):
         if indicators['sum'][i] > 0:
             CDL_signal[i] = Buy
         elif indicators['sum'][i] < 0:
             CDL_signal[i] = Sell
-        i += 1
-    return add_or_not(data,CDL_signal,add_to_data=add_to_data,label=label)
+    trend = CDL_signal
+    trend_Buy = trend.copy()
+    trend_Sell = trend.copy()
+    trend_Hold = trend.copy()
+    for i in range(0, len(trend)):
+        if trend[i] == Buy:
+            trend_Buy[i] = 1
+            trend_Sell[i] = 0
+            trend_Hold[i] = 0
+        elif trend[i] == Sell:
+            trend_Buy[i] = 0
+            trend_Sell[i] = 1
+            trend_Hold[i] = 0
+        elif trend[i] == Hold:
+            trend_Buy[i] = 0
+            trend_Sell[i] = 0
+            trend_Hold[i] = 1
+        else:
+            trend_Buy[i] = 0
+            trend_Sell[i] = 0
+            trend_Hold[i] = 0
+    return_signal = data.copy()
+    return_signal[label] = trend
+    # return_signal['CDL_Buy'] = trend_Buy
+    # return_signal['CDL_Sell'] = trend_Sell
+    # return_signal['CDL_Hold'] = trend_Hold
+    return return_signal
 
 # Returntorisk agent. Return Bad, Ok, Good, Excellent, based on returntorisk ratio.
-def returntorisk_agent (data, window =7, measures = Adj_Close, add_to_data = False):
+def RRR_agent (data, window =7, measures = Adj_Close):
     label = "returntorisk_agent" + str(window)
     return_expost = (data[Adj_Close]-data[Adj_Close].shift(window))/data[Adj_Close].shift(window)
     risk_expost = return_expost.rolling(window).std()
     returntorisk_expost = return_expost/risk_expost
-    returntorisk_string = [Excellent for x in range(len(data))]
+    for i in range(len(returntorisk_expost)):
+        if returntorisk_expost[i] >= 50:
+            returntorisk_expost[i] = 50
+        elif returntorisk_expost[i] <= -50:
+            returntorisk_expost[i] = -50
+    returntorisk_string = [Good for x in range(len(data))]
     returntorisk_signal = np.array(returntorisk_string)
     for i in range (window, len(returntorisk_signal)):
         if abs(returntorisk_expost[i]) < risk_appetite:
             returntorisk_signal[i] = Bad
-        elif abs(returntorisk_expost[i]) < risk_appetite*2:
+        elif abs(returntorisk_expost[i]) < risk_appetite*4:
             returntorisk_signal[i] = Ok
         elif abs(returntorisk_expost[i]) < risk_appetite*4:
             returntorisk_signal[i] = Good
+    trend = returntorisk_signal
+    trend_Bad = trend.copy()
+    trend_Ok = trend.copy()
+    trend_Good = trend.copy()
+    for i in range(0, len(trend)):
+        if trend[i] == Bad:
+            trend_Bad[i] = 1
+            trend_Ok[i] = 0
+            trend_Good[i] = 0
+        elif trend[i] == Ok:
+            trend_Bad[i] = 0
+            trend_Ok[i] = 1
+            trend_Good[i] = 0
+        elif trend[i] == Good:
+            trend_Bad[i] = 0
+            trend_Ok[i] = 0
+            trend_Good[i] = 1
         else:
-            returntorisk_signal[i] = Excellent
-    return add_or_not(data,returntorisk_signal,add_to_data=add_to_data,label=label)
+            trend_Bad[i] = 0
+            trend_Ok[i] = 0
+            trend_Good[i] = 0
+    return_signal = data.copy()
+    return_signal['RRR_Bad'] = trend_Bad
+    return_signal['RRR_Ok'] = trend_Ok
+    return_signal['RRR_Good'] = trend_Good
+    # return_signal[label]= returntorisk_expost
+    return return_signal
 
 # The correct decision. Based on exAnte calculations of return and risk.
-def correct_decision (data, window =7, measures = Adj_Close, add_to_data = False):
+def correct_decision (data, window =7, measures = Adj_Close):
     window = prediction_days
     label = "new_decision" + str(window)
     return_exante = (data[Adj_Close] - data[Adj_Close].shift(window - 1)) / data[Adj_Close].shift(window - 1)
@@ -345,7 +492,9 @@ def correct_decision (data, window =7, measures = Adj_Close, add_to_data = False
     # new_data['sharpe'] = returntorisk_exante
     # new_data[label] = decision_signal
     # print new_data
-    return  add_or_not(data,decision_signal,add_to_data=add_to_data,label=label)
+    return_signal = data.copy()
+    return_signal['Decision'] = decision_signal
+    return  return_signal
 
 
 def make_indicator_files ():
@@ -357,14 +506,14 @@ def make_indicator_files ():
         symbol = company_ticker
         df = get_data(symbol, pd.date_range('2006-1-1', '2014-1-1'))
         print "Data Read for: ", company_name , " - ", company_ticker
-        HP_trend_agent(df, add_to_data=True)
-        MAC_agent(df, add_to_data=True)
-        stochastic_agent(df, add_to_data=True)
-        volume_agent(df, add_to_data=True)
-        ADX_agent(df, add_to_data=True)
-        Candlestick_agent(df, add_to_data=True)
-        returntorisk_agent(df, add_to_data=True)
-        correct_decision(df, add_to_data=True)
+        df = HP_trend_agent(df)
+        df = MAC_agent(df)
+        df = stochastic_agent(df)
+        df = volume_agent(df)
+        df = ADX_agent(df)
+        df = Candlestick_agent(df)
+        df = RRR_agent(df)
+        df = correct_decision(df)
         print "Indicators made for: ", company_name, " - ", company_ticker
         columns = df.columns.values.tolist()
         # columns.insert(0, 'Date')
@@ -378,8 +527,8 @@ def generate_test_train ():
     company_name = ticker_file['Company_Name'][0]
     company_ticker = "i_" + ticker_file['Ticker'][0]
     symbol = company_ticker
-    df_training = get_data(symbol, pd.date_range('2006-3-1', '2012-3-1'))
-    df_testing = get_data(symbol, pd.date_range('2012-3-1', '2013-12-1'))
+    df_training = get_data(symbol, pd.date_range('2006-5-1', '2012-3-1'))
+    df_testing = get_data(symbol, pd.date_range('2012-3-1', '2013-10-1'))
     print "Data Read for: ", company_name , " - ", company_ticker
     training_data = df_training.copy()
     testing_data = df_testing.copy()
@@ -399,7 +548,8 @@ def generate_test_train ():
         training_size += len(df_training)
         testing_size += len(df_testing)
     columns = training_data.columns.values.tolist()
-    columns = columns [-8:]
+    columns = columns [6:]
+    print columns
     training_data.to_csv(symbol_to_path("training_data"),columns=columns)
     testing_data.to_csv(symbol_to_path("testing_data"),columns=columns)
     print "training size: ", training_size
@@ -412,7 +562,7 @@ def generate_test_train ():
 
 def run():
     # Run function which is called from main.
-    symbol = 'i_BBW'
+    symbol = 'BBW'
     print symbol_to_path(symbol)
     df = get_data(symbol, pd.date_range('2012-1-1', '2012-04-1'))
     print "Data Read"
@@ -440,8 +590,11 @@ def run():
     # print "Done!"
     # correct_decision(df, add_to_data=True)
     # print df
-    # make_indicator_files()
+
+    make_indicator_files()
     generate_test_train()
+    # df = RRR_agent(df)
+    # print df
 
 if __name__ == '__main__':
     run()
